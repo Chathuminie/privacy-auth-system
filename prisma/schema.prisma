@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -11,11 +6,14 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 model User {
-  id        String    @id @default(cuid())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  passkeys  Passkey[]
+  id         String              @id @default(cuid())
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  passkeys   Passkey[]
+  challenges WebAuthnChallenge[]
+  sessions Session[]
 }
 
 model Passkey {
@@ -26,12 +24,42 @@ model Passkey {
   deviceType     String
   backedUp       Boolean
   transports     String[] @default([])
+  userId         String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([webauthnUserID, userId])
+  @@index([userId])
+}
+
+model WebAuthnChallenge {
+  id             String                @id @default(cuid())
+  challenge      String                @unique
+  webauthnUserID String?
+  type           WebAuthnChallengeType
+  expiresAt      DateTime
+  createdAt      DateTime              @default(now())
+  userId         String?
+  user           User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum WebAuthnChallengeType {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-
-  @@unique([webauthnUserID, userId])
   @@index([userId])
+  @@index([expiresAt])
 }
