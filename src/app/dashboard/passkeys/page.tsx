@@ -2,6 +2,9 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import AddPasskeyButton from "./add-passkey-button";
+import RemovePasskeyButton from "./remove-passkey-button";
+
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -73,6 +76,8 @@ export default async function PasskeysPage() {
             passkey(s).
           </p>
 
+         <AddPasskeyButton />
+
           {passkeys.length === 0 ? (
             <p className="mt-6 text-gray-400">
               No passkeys found.
@@ -107,6 +112,12 @@ export default async function PasskeysPage() {
                       day: "numeric",
                     })}
                   </p>
+
+<RemovePasskeyButton
+  passkeyId={passkey.id}
+  canRemove={passkeys.length > 1}
+/>
+
                 </div>
               ))}
             </div>

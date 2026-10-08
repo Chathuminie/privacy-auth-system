@@ -73,18 +73,32 @@ export default function LoginPage() {
     setMessage("Login successful.");
 
     router.push("/dashboard");
-  } catch (error) {
-    console.error("Login error:", error);
 
-    if (error instanceof Error) {
-      setMessage(`Login error: ${error.message}`);
+
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.name === "NotAllowedError"
+    ) {
+      setMessage(
+        "Passkey sign-in was cancelled or could not be completed. Please try again."
+      );
     } else {
-      setMessage("Unable to login with passkey.");
+      console.error("Login error:", error);
+
+      setMessage(
+        error instanceof Error
+          ? `Login error: ${error.message}`
+          : "Unable to login with passkey."
+      );
     }
   } finally {
     setLoading(false);
   }
 }
+
+
+
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -101,9 +115,10 @@ export default function LoginPage() {
          <button
   type="button"
   onClick={handleLogin}
+  disabled={loading}
   className="w-full bg-white text-black py-3 rounded-lg font-semibold"
 >
-  Login with Passkey
+  {loading ? "Signing in..." : "Login with Passkey"}
 </button>
           <p className="text-gray-500 text-sm text-center mt-4">
             No password required.
@@ -121,7 +136,7 @@ export default function LoginPage() {
             href="/register"
             className="text-gray-400 hover:text-white"
           >
-            Don't have an account? Create one
+            Don&apos;t have an account? Create one
           </Link>
         </div>
 
