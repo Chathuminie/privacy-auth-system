@@ -1,6 +1,30 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import {
+  getSessionFromToken,
+  SESSION_COOKIE_NAME,
+} from "@/lib/session";
+
 import Link from "next/link";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const cookieStore = await cookies();
+
+const sessionToken =
+  cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+if (!sessionToken) {
+  redirect("/login");
+}
+
+const session = await getSessionFromToken(
+  sessionToken
+);
+
+if (!session) {
+  redirect("/login");
+}
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-5xl mx-auto px-6 py-12">
@@ -16,12 +40,14 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <Link
-            href="/"
-            className="border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
-          >
-            Logout
-          </Link>
+         <form action="/api/auth/logout" method="post">
+  <button
+    type="submit"
+    className="border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
+  >
+    Logout
+  </button>
+</form>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -79,7 +105,7 @@ export default function DashboardPage() {
             <p>
               User ID:
               <span className="text-white ml-2">
-                Not generated yet
+                {session.user.id}
               </span>
             </p>
 
