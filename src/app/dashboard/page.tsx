@@ -75,9 +75,14 @@ if (!session) {
               Manage devices and passkeys connected to your account.
             </p>
 
-            <button className="mt-4 text-sm border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800">
-              Manage Passkeys
-            </button>
+            
+<Link
+  href="/dashboard/passkeys"
+  className="inline-block mt-4 text-sm border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
+>
+  Manage Passkeys
+</Link>
+
           </div>
 
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
