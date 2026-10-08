@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 
 import { prisma } from "@/lib/prisma";
+import {
+  createSession,
+  SESSION_COOKIE_NAME,
+} from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -26,7 +30,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the temporary authentication challenge.
     const challengeRecord =
       await prisma.webAuthnChallenge.findFirst({
         where: {
@@ -50,7 +53,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the passkey chosen by the authenticator.
     const passkey = await prisma.passkey.findUnique({
       where: {
         id: response.id,
@@ -72,14 +74,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // A challenge should only be usable once.
     await prisma.webAuthnChallenge.delete({
       where: {
         id: challengeRecord.id,
       },
     });
 
-    // Verify the cryptographic authentication response.
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: challengeRecord.challenge,
@@ -106,7 +106,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the WebAuthn signature counter.
     await prisma.passkey.update({
       where: {
         id: passkey.id,
@@ -118,10 +117,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    // Create a secure session after successful authentication.
+    const { token, expiresAt } = await createSession(
+      passkey.userId
+    );
+
+    const responseToBrowser = NextResponse.json({
       verified: true,
       userId: passkey.userId,
     });
+
+    responseToBrowser.cookies.set({
+      name: SESSION_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
+    });
+
+    return responseToBrowser;
   } catch (error) {
     console.error(
       "Authentication verification error:",
