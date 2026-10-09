@@ -1,5 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -9,21 +10,20 @@ import {
 
 export const runtime = "nodejs";
 
-const MAX_SESSION_AGE_MS = 5 * 60 * 1000;
+const rpID = "localhost";
+const origin = "http://localhost:3000";
 
 export async function POST(request: NextRequest) {
   try {
-    // Step 1: Validate the request origin.
-    const requestOrigin = request.headers.get("origin");
-
-    if (requestOrigin !== request.nextUrl.origin) {
+    // 1. Protect against cross-origin requests.
+    if (request.headers.get("origin") !== request.nextUrl.origin) {
       return NextResponse.json(
         { error: "Invalid request origin" },
         { status: 403 }
       );
     }
 
-    // Step 2: Read the session cookie.
+    // 2. Require a valid authenticated session.
     const token =
       request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Validate the authenticated session.
     const session = await getSessionFromToken(token);
 
     if (!session) {
@@ -44,26 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 4: Require a recently created login session.
-    const sessionAge =
-      Date.now() - session.createdAt.getTime();
-
-    if (
-      sessionAge < 0 ||
-      sessionAge > MAX_SESSION_AGE_MS
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Please sign in again before removing a passkey",
-        },
-        { status: 403 }
-      );
-    }
-
-    // Step 5: Validate the requested credential ID.
+    // 3. Validate the removal request.
     const body = await request.json().catch(() => null);
+
     const passkeyId = body?.passkeyId;
+    const challengeId = body?.challengeId;
+    const authenticationResponse = body?.response;
 
     if (
       typeof passkeyId !== "string" ||
@@ -76,14 +61,110 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Never trust a user ID from the browser.
+    if (
+      typeof challengeId !== "string" ||
+      challengeId.length === 0 ||
+      challengeId.length > 2048 ||
+      typeof authenticationResponse?.id !== "string"
+    ) {
+      return NextResponse.json(
+        { error: "Fresh passkey verification is required" },
+        { status: 403 }
+      );
+    }
+
+    // Never accept a user ID from the browser.
     const userId = session.user.id;
 
-    // Step 6: Perform ownership verification,
-    // last-passkey protection and deletion together.
+    // 4. Find the challenge bound to this user,
+    // session and exact passkey removal request.
+    const challenge = await prisma.webAuthnChallenge.findFirst({
+      where: {
+        id: challengeId,
+        type: "PASSKEY_REMOVAL",
+        userId,
+        sessionId: session.id,
+        targetPasskeyId: passkeyId,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!challenge) {
+      return NextResponse.json(
+        { error: "Removal challenge invalid or expired" },
+        { status: 403 }
+      );
+    }
+
+    // 5. Find a credential belonging to this user.
+    const verifyingPasskey = await prisma.passkey.findFirst({
+      where: {
+        id: authenticationResponse.id,
+        userId,
+      },
+      select: {
+        id: true,
+        publicKey: true,
+        counter: true,
+      },
+    });
+
+    if (!verifyingPasskey) {
+      return NextResponse.json(
+        { error: "Verification passkey not found" },
+        { status: 403 }
+      );
+    }
+
+    // 6. Cryptographically verify the signed
+    // WebAuthn authentication response.
+    let verification;
+
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: authenticationResponse,
+        expectedChallenge: challenge.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        requireUserVerification: true,
+        credential: {
+          id: verifyingPasskey.id,
+          publicKey: new Uint8Array(verifyingPasskey.publicKey),
+          counter: Number(verifyingPasskey.counter),
+        },
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "Passkey verification failed" },
+        { status: 403 }
+      );
+    }
+
+    if (!verification.verified) {
+      return NextResponse.json(
+        { error: "Passkey verification failed" },
+        { status: 403 }
+      );
+    }
+
+    const newCounter = verification.authenticationInfo.newCounter;
+
+    if (!Number.isSafeInteger(newCounter) || newCounter < 0) {
+      return NextResponse.json(
+        { error: "Invalid authenticator counter" },
+        { status: 403 }
+      );
+    }
+
+    // 7. Recheck ownership and last-passkey protection.
+    // Consume the challenge, update the authenticator
+    // counter, and delete the selected credential in
+    // one serializable database transaction.
     const result = await prisma.$transaction(
       async (tx) => {
-        const passkey = await tx.passkey.findFirst({
+        const target = await tx.passkey.findFirst({
           where: {
             id: passkeyId,
             userId,
@@ -93,19 +174,55 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        if (!passkey) {
+        if (!target) {
           return "NOT_FOUND" as const;
         }
 
-        const passkeyCount = await tx.passkey.count({
+        const count = await tx.passkey.count({
           where: {
             userId,
           },
         });
 
-        // Never remove the user's final passkey.
-        if (passkeyCount <= 1) {
+        if (count <= 1) {
           return "LAST_PASSKEY" as const;
+        }
+
+        // Delete the challenge exactly once.
+        const consumed = await tx.webAuthnChallenge.deleteMany({
+          where: {
+            id: challenge.id,
+            challenge: challenge.challenge,
+            type: "PASSKEY_REMOVAL",
+            userId,
+            sessionId: session.id,
+            targetPasskeyId: passkeyId,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+        });
+
+        if (consumed.count !== 1) {
+          return "CHALLENGE_USED" as const;
+        }
+
+        // Prevent stale authenticator counters from
+        // being accepted after concurrent changes.
+        const updated = await tx.passkey.updateMany({
+          where: {
+            id: verifyingPasskey.id,
+            userId,
+            counter: verifyingPasskey.counter,
+          },
+          data: {
+            counter: BigInt(newCounter),
+          },
+        });
+
+        if (updated.count !== 1) {
+          // Throwing rolls back challenge consumption.
+          throw new Error("CREDENTIAL_CHANGED");
         }
 
         const deleted = await tx.passkey.deleteMany({
@@ -116,7 +233,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (deleted.count !== 1) {
-          return "NOT_FOUND" as const;
+          throw new Error("TARGET_CHANGED");
         }
 
         return "DELETED" as const;
@@ -143,13 +260,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Passkey removed successfully",
-    });
+    if (result === "CHALLENGE_USED") {
+      return NextResponse.json(
+        { error: "Removal challenge expired or already used" },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Passkey removed successfully",
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
-    // Serializable transactions may detect a
-    // concurrent credential modification.
     if (
       typeof error === "object" &&
       error !== null &&
@@ -157,10 +286,18 @@ export async function POST(request: NextRequest) {
       error.code === "P2034"
     ) {
       return NextResponse.json(
-        {
-          error:
-            "Passkey list changed. Refresh and try again.",
-        },
+        { error: "Passkey list changed. Refresh and try again." },
+        { status: 409 }
+      );
+    }
+
+    if (
+      error instanceof Error &&
+      (error.message === "CREDENTIAL_CHANGED" ||
+        error.message === "TARGET_CHANGED")
+    ) {
+      return NextResponse.json(
+        { error: "Passkey state changed. Please try again." },
         { status: 409 }
       );
     }
