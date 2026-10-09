@@ -9,17 +9,31 @@ import {
 
 import { NextRequest } from "next/server";
 
-// Mock all database and session operations.
+// Mock authentication, database, and transaction operations.
 const mocks = vi.hoisted(() => ({
   getSessionFromToken: vi.fn(),
-  transaction: vi.fn(),
-  findFirst: vi.fn(),
+  verifyAuthenticationResponse: vi.fn(),
+
+  challengeFindFirst: vi.fn(),
+  challengeDeleteMany: vi.fn(),
+
+  passkeyFindFirst: vi.fn(),
+  targetFindFirst: vi.fn(),
   count: vi.fn(),
+  updateMany: vi.fn(),
   deleteMany: vi.fn(),
+
+  transaction: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    webAuthnChallenge: {
+      findFirst: mocks.challengeFindFirst,
+    },
+    passkey: {
+      findFirst: mocks.passkeyFindFirst,
+    },
     $transaction: mocks.transaction,
   },
 }));
@@ -29,47 +43,146 @@ vi.mock("@/lib/session", () => ({
   getSessionFromToken: mocks.getSessionFromToken,
 }));
 
+vi.mock("@simplewebauthn/server", () => ({
+  verifyAuthenticationResponse:
+    mocks.verifyAuthenticationResponse,
+}));
+
 import { POST } from "./route";
 
-// Create a fake API request.
-function makeRequest(authenticated = false) {
-  return new NextRequest(
-    "http://localhost:3000/api/webauthn/passkeys/remove",
-    {
-      method: "POST",
-      headers: {
-        Origin: "http://localhost:3000",
-        "Content-Type": "application/json",
-        ...(authenticated
-          ? { Cookie: "privacy_auth_session=fake-token" }
-          : {}),
-      },
-      body: JSON.stringify({
-        passkeyId: "fake-passkey-id",
-      }),
-    }
-  );
+const API_URL =
+  "http://localhost:3000/api/webauthn/passkeys/remove";
+
+const validBody = {
+  passkeyId: "target-passkey",
+  challengeId: "challenge-1",
+  response: {
+    id: "verifying-passkey",
+    rawId: "verifying-passkey",
+    type: "public-key",
+    response: {
+      authenticatorData: "fake-auth-data",
+      clientDataJSON: "fake-client-data",
+      signature: "fake-signature",
+      userHandle: null,
+    },
+  },
+};
+
+function makeRequest({
+  authenticated = true,
+  origin = "http://localhost:3000",
+  body = validBody,
+}: {
+  authenticated?: boolean;
+  origin?: string;
+  body?: unknown;
+} = {}) {
+  return new NextRequest(API_URL, {
+    method: "POST",
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      ...(authenticated
+        ? {
+            Cookie:
+              "privacy_auth_session=fake-token",
+          }
+        : {}),
+    },
+    body: JSON.stringify(body),
+  });
 }
 
-describe("Remove Passkey API", () => {
+describe("Secure Remove Passkey API", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Use an in-memory fake transaction.
+    // Valid authenticated session.
+    mocks.getSessionFromToken.mockResolvedValue({
+      id: "session-1",
+      user: {
+        id: "user-1",
+      },
+      createdAt: new Date(
+        Date.now() - 60 * 60 * 1000
+      ),
+    });
+
+    // Valid, unexpired removal challenge.
+    mocks.challengeFindFirst.mockResolvedValue({
+      id: "challenge-1",
+      challenge: "signed-challenge",
+      type: "PASSKEY_REMOVAL",
+      userId: "user-1",
+      sessionId: "session-1",
+      targetPasskeyId: "target-passkey",
+      expiresAt: new Date(
+        Date.now() + 60_000
+      ),
+    });
+
+    // Credential used to prove the user's identity.
+    mocks.passkeyFindFirst.mockResolvedValue({
+      id: "verifying-passkey",
+      userId: "user-1",
+      publicKey: new Uint8Array([1, 2, 3]),
+      counter: BigInt(1),
+    });
+
+    // Mock a successful cryptographic verification.
+    mocks.verifyAuthenticationResponse.mockResolvedValue({
+      verified: true,
+      authenticationInfo: {
+        newCounter: 2,
+      },
+    });
+
+    // Target passkey belongs to this user.
+    mocks.targetFindFirst.mockResolvedValue({
+      id: "target-passkey",
+    });
+
+    // Two passkeys exist, so removal is permitted.
+    mocks.count.mockResolvedValue(2);
+
+    // Simulate successful database operations.
+    mocks.challengeDeleteMany.mockResolvedValue({
+      count: 1,
+    });
+
+    mocks.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    mocks.deleteMany.mockResolvedValue({
+      count: 1,
+    });
+
+    // Fake Prisma transaction client.
+    const tx = {
+      webAuthnChallenge: {
+        deleteMany: mocks.challengeDeleteMany,
+      },
+      passkey: {
+        findFirst: mocks.targetFindFirst,
+        count: mocks.count,
+        updateMany: mocks.updateMany,
+        deleteMany: mocks.deleteMany,
+      },
+    };
+
     mocks.transaction.mockImplementation(
-      async (callback) =>
-        callback({
-          passkey: {
-            findFirst: mocks.findFirst,
-            count: mocks.count,
-            deleteMany: mocks.deleteMany,
-          },
-        })
+      async (
+        callback: (client: typeof tx) => Promise<unknown>
+      ) => callback(tx)
     );
   });
 
-  it("rejects unauthenticated users", async () => {
-    const response = await POST(makeRequest());
+  it("1. Rejects unauthenticated users", async () => {
+    const response = await POST(
+      makeRequest({ authenticated: false })
+    );
 
     expect(response.status).toBe(401);
 
@@ -77,51 +190,179 @@ describe("Remove Passkey API", () => {
       error: "Not authenticated",
     });
 
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).not.toHaveBeenCalled();
+
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("protects the last remaining passkey", async () => {
-    // Pretend the user recently signed in.
-    mocks.getSessionFromToken.mockResolvedValue({
-      user: {
-        id: "fake-user-id",
-      },
-      createdAt: new Date(),
-    });
+  it("2. Rejects invalid or expired sessions", async () => {
+    mocks.getSessionFromToken.mockResolvedValue(null);
 
-    // Pretend the requested passkey belongs to the user.
-    mocks.findFirst.mockResolvedValue({
-      id: "fake-passkey-id",
-    });
+    const response = await POST(makeRequest());
 
-    // The user has only ONE passkey.
-    mocks.count.mockResolvedValue(1);
+    expect(response.status).toBe(401);
 
-    const response = await POST(makeRequest(true));
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).not.toHaveBeenCalled();
 
-    expect(response.status).toBe(409);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
 
-    const data = await response.json();
-
-    expect(data.error).toContain(
-      "You cannot remove your last passkey"
+  it("3. Rejects requests from another origin", async () => {
+    const response = await POST(
+      makeRequest({
+        origin: "https://example.com",
+      })
     );
 
-    // Most important security assertion:
-    // No deletion should happen.
+    expect(response.status).toBe(403);
+
+    expect(await response.json()).toEqual({
+      error: "Invalid request origin",
+    });
+
+    expect(
+      mocks.getSessionFromToken
+    ).not.toHaveBeenCalled();
+
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("4. Requires fresh WebAuthn authentication", async () => {
+    const response = await POST(
+      makeRequest({
+        body: {
+          passkeyId: "target-passkey",
+        },
+      })
+    );
+
+    expect(response.status).toBe(403);
+
+    expect(await response.json()).toEqual({
+      error: "Fresh passkey verification is required",
+    });
+
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).not.toHaveBeenCalled();
+
     expect(mocks.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("prevents removal of another user's passkey", async () => {
-    mocks.getSessionFromToken.mockResolvedValue({
-      user: { id: "fake-user-id" },
-      createdAt: new Date(),
+  it("5. Rejects invalid or expired removal challenges", async () => {
+    mocks.challengeFindFirst.mockResolvedValue(null);
+
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(403);
+
+    expect(await response.json()).toEqual({
+      error: "Removal challenge invalid or expired",
     });
 
-    // No matching passkey belongs to this user.
-    mocks.findFirst.mockResolvedValue(null);
+    // The challenge lookup must bind every identity.
+    expect(mocks.challengeFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "challenge-1",
+        type: "PASSKEY_REMOVAL",
+        userId: "user-1",
+        sessionId: "session-1",
+        targetPasskeyId: "target-passkey",
+        expiresAt: {
+          gt: expect.any(Date),
+        },
+      },
+    });
 
-    const response = await POST(makeRequest(true));
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).not.toHaveBeenCalled();
+
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("6. Rejects another user's verification passkey", async () => {
+    mocks.passkeyFindFirst.mockResolvedValue(null);
+
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(403);
+
+    expect(mocks.passkeyFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "verifying-passkey",
+        userId: "user-1",
+      },
+      select: {
+        id: true,
+        publicKey: true,
+        counter: true,
+      },
+    });
+
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).not.toHaveBeenCalled();
+
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("7. Rejects failed WebAuthn verification", async () => {
+    mocks.verifyAuthenticationResponse.mockResolvedValue({
+      verified: false,
+    });
+
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(403);
+
+    expect(await response.json()).toEqual({
+      error: "Passkey verification failed",
+    });
+
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("8. Rejects invalid WebAuthn signatures", async () => {
+    mocks.verifyAuthenticationResponse.mockRejectedValue(
+      new Error("Invalid signature")
+    );
+
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(403);
+
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("9. Protects the last remaining passkey", async () => {
+    mocks.count.mockResolvedValue(1);
+
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(409);
+
+    expect((await response.json()).error).toContain(
+      "You cannot remove your last passkey"
+    );
+
+    expect(
+      mocks.challengeDeleteMany
+    ).not.toHaveBeenCalled();
+
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("10. Prevents removal of another user's passkey", async () => {
+    mocks.targetFindFirst.mockResolvedValue(null);
+
+    const response = await POST(makeRequest());
 
     expect(response.status).toBe(404);
 
@@ -129,29 +370,38 @@ describe("Remove Passkey API", () => {
       error: "Passkey not found",
     });
 
-    expect(mocks.count).not.toHaveBeenCalled();
+    expect(mocks.targetFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "target-passkey",
+        userId: "user-1",
+      },
+      select: {
+        id: true,
+      },
+    });
+
     expect(mocks.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("removes an owned passkey when multiple exist", async () => {
-    mocks.getSessionFromToken.mockResolvedValue({
-      user: { id: "fake-user-id" },
-      createdAt: new Date(),
+  it("11. Rejects an already-consumed challenge", async () => {
+    mocks.challengeDeleteMany.mockResolvedValue({
+      count: 0,
     });
 
-    mocks.findFirst.mockResolvedValue({
-      id: "fake-passkey-id",
+    const response = await POST(makeRequest());
+
+    expect(response.status).toBe(403);
+
+    expect(await response.json()).toEqual({
+      error: "Removal challenge expired or already used",
     });
 
-    // The user has two registered passkeys.
-    mocks.count.mockResolvedValue(2);
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
 
-    // Simulate successful deletion.
-    mocks.deleteMany.mockResolvedValue({
-      count: 1,
-    });
-
-    const response = await POST(makeRequest(true));
+  it("12. Removes a passkey after fresh verification", async () => {
+    const response = await POST(makeRequest());
 
     expect(response.status).toBe(200);
 
@@ -160,77 +410,64 @@ describe("Remove Passkey API", () => {
       message: "Passkey removed successfully",
     });
 
-    expect(mocks.deleteMany).toHaveBeenCalledWith({
-      where: {
-        id: "fake-passkey-id",
-        userId: "fake-user-id",
-      },
-    });
-  });
-
-  it("rejects sessions older than 5 minutes", async () => {
-    // Simulate a session created 6 minutes ago.
-    mocks.getSessionFromToken.mockResolvedValue({
-      user: {
-        id: "fake-user-id",
-      },
-      createdAt: new Date(
-        Date.now() - 6 * 60 * 1000
-      ),
-    });
-
-    const response = await POST(makeRequest(true));
-
-    // An old session must not be allowed
-    // to remove a passkey.
-    expect(response.status).toBe(403);
-
-    expect(await response.json()).toEqual({
-      error:
-        "Please sign in again before removing a passkey",
-    });
-
-    // No database modification should occur.
-    expect(mocks.transaction).not.toHaveBeenCalled();
-    expect(mocks.deleteMany).not.toHaveBeenCalled();
-  });
-
-  it("rejects requests from another origin", async () => {
-    const request = new NextRequest(
-      "http://localhost:3000/api/webauthn/passkeys/remove",
-      {
-        method: "POST",
-        headers: {
-          Origin: "https://example.com",
-          "Content-Type": "application/json",
-          Cookie: "privacy_auth_session=fake-token",
-        },
-        body: JSON.stringify({
-          passkeyId: "fake-passkey-id",
+    // Ensure the stored challenge and credential
+    // were supplied to the verification library.
+    expect(
+      mocks.verifyAuthenticationResponse
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedChallenge: "signed-challenge",
+        expectedOrigin: "http://localhost:3000",
+        expectedRPID: "localhost",
+        requireUserVerification: true,
+        credential: expect.objectContaining({
+          id: "verifying-passkey",
+          counter: 1,
         }),
-      }
+      })
     );
 
-    const response = await POST(request);
-
-    expect(response.status).toBe(403);
-
-    expect(await response.json()).toEqual({
-      error: "Invalid request origin",
+    // The challenge must be consumed.
+    expect(mocks.challengeDeleteMany).toHaveBeenCalledWith({
+      where: {
+        id: "challenge-1",
+        challenge: "signed-challenge",
+        type: "PASSKEY_REMOVAL",
+        userId: "user-1",
+        sessionId: "session-1",
+        targetPasskeyId: "target-passkey",
+        expiresAt: {
+          gt: expect.any(Date),
+        },
+      },
     });
 
-    // Reject before session lookup or database access.
-    expect(
-      mocks.getSessionFromToken
-    ).not.toHaveBeenCalled();
+    // Persist the updated authenticator counter.
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "verifying-passkey",
+        userId: "user-1",
+        counter: BigInt(1),
+      },
+      data: {
+        counter: BigInt(2),
+      },
+    });
 
-    expect(
-      mocks.transaction
-    ).not.toHaveBeenCalled();
+    // Delete only the requested, owned passkey.
+    expect(mocks.deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: "target-passkey",
+        userId: "user-1",
+      },
+    });
 
-    expect(
-      mocks.deleteMany
-    ).not.toHaveBeenCalled();
+    // All database changes use a serializable transaction.
+    expect(mocks.transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      {
+        isolationLevel: "Serializable",
+      }
+    );
   });
-
 });

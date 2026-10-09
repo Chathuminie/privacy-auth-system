@@ -28,9 +28,9 @@ model Passkey {
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([webauthnUserID, userId])
   @@index([userId])
 }
+
 
 model WebAuthnChallenge {
   id             String                @id @default(cuid())
@@ -39,17 +39,30 @@ model WebAuthnChallenge {
   type           WebAuthnChallengeType
   expiresAt      DateTime
   createdAt      DateTime              @default(now())
+
   userId         String?
   user           User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // The passkey being removed.
+  targetPasskeyId String?
+
+  // Session that requested the removal.
+  sessionId       String?
+
   @@index([userId])
   @@index([expiresAt])
+  @@index([sessionId])
 }
+
+
 
 enum WebAuthnChallengeType {
   REGISTRATION
   AUTHENTICATION
+  PASSKEY_REMOVAL
+  ACCOUNT_DELETION
 }
+
 
 model Session {
   id        String   @id @default(cuid())
