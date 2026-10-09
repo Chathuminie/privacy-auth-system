@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import DeleteAccountButton from "./delete-account-button";
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -179,17 +180,15 @@ export default async function PrivacyPage() {
           </a>
         </section>
 
-        <section className="mt-6 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="text-xl font-semibold">
-            Account Deletion
-          </h2>
 
-          <p className="mt-3 text-sm text-gray-400">
-            Secure account deletion is being developed.
-            It will require fresh passkey verification
-            before removing account records.
-          </p>
-        </section>
+<section className="mt-6 rounded-xl border border-red-900/60 bg-gray-900 p-6">
+  <h2 className="text-xl font-semibold text-red-400">
+    Account Deletion
+  </h2>
+
+  <DeleteAccountButton />
+</section>
+
       </div>
     </main>
   );
