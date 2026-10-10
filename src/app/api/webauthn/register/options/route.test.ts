@@ -12,6 +12,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   createUser: vi.fn(),
   createChallenge: vi.fn(),
+  deleteAbandonedUsers: vi.fn(),
   generateOptions: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       create: mocks.createUser,
+      deleteMany: mocks.deleteAbandonedUsers,
     },
     webAuthnChallenge: {
       create: mocks.createChallenge,
@@ -52,6 +54,10 @@ describe("Registration Options API Security", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
+    mocks.deleteAbandonedUsers.mockResolvedValue({
+      count: 0,
+    });
+
     mocks.createUser.mockResolvedValue({
       id: "user-test-1",
     });
@@ -74,6 +80,7 @@ describe("Registration Options API Security", () => {
     );
 
     expect(result.status).toBe(403);
+    expect(mocks.deleteAbandonedUsers).not.toHaveBeenCalled();
     expect(mocks.createUser).not.toHaveBeenCalled();
     expect(mocks.createChallenge).not.toHaveBeenCalled();
   });
@@ -82,6 +89,7 @@ describe("Registration Options API Security", () => {
     const result = await POST(makeRequest());
 
     expect(result.status).toBe(403);
+    expect(mocks.deleteAbandonedUsers).not.toHaveBeenCalled();
     expect(mocks.createUser).not.toHaveBeenCalled();
     expect(mocks.createChallenge).not.toHaveBeenCalled();
   });
@@ -92,7 +100,6 @@ describe("Registration Options API Security", () => {
     );
 
     expect(result.status).toBe(200);
-
     expect(mocks.createUser).toHaveBeenCalledOnce();
 
     expect(mocks.generateOptions).toHaveBeenCalledWith(
@@ -130,5 +137,64 @@ describe("Registration Options API Security", () => {
 
     expect(result.status).toBe(500);
     expect(mocks.createChallenge).not.toHaveBeenCalled();
+  });
+
+  it("5. Uses conservative abandoned-account cleanup filters", async () => {
+    const result = await POST(
+      makeRequest("http://localhost:3000"),
+    );
+
+    expect(result.status).toBe(200);
+
+    expect(mocks.deleteAbandonedUsers).toHaveBeenCalledWith({
+      where: {
+        createdAt: {
+          lt: expect.any(Date),
+        },
+        updatedAt: {
+          lt: expect.any(Date),
+        },
+        passkeys: {
+          none: {},
+        },
+        sessions: {
+          none: {},
+        },
+        challenges: {
+          none: {
+            expiresAt: {
+              gt: expect.any(Date),
+            },
+          },
+        },
+      },
+    });
+
+    const cleanupFilter =
+      mocks.deleteAbandonedUsers.mock.calls[0][0];
+
+    const cutoff = cleanupFilter.where.createdAt.lt;
+
+    expect(cutoff.getTime()).toBeLessThan(
+      Date.now() - 23 * 60 * 60 * 1000,
+    );
+
+    expect(cutoff.getTime()).toBeGreaterThan(
+      Date.now() - 25 * 60 * 60 * 1000,
+    );
+  });
+
+  it("6. Allows registration when cleanup fails", async () => {
+    mocks.deleteAbandonedUsers.mockRejectedValue(
+      new Error("Cleanup unavailable"),
+    );
+
+    const result = await POST(
+      makeRequest("http://localhost:3000"),
+    );
+
+    expect(result.status).toBe(200);
+    expect(mocks.createUser).toHaveBeenCalledOnce();
+    expect(mocks.createChallenge).toHaveBeenCalledOnce();
   });
 });

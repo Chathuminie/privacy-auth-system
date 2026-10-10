@@ -10,9 +10,43 @@ const rpName = "Privacy Auth";
 const rpID = "localhost";
 const expectedOrigin = "http://localhost:3000";
 
+const ABANDONED_REGISTRATION_AGE_MS =
+  24 * 60 * 60 * 1000;
+
+async function cleanupAbandonedRegistrations() {
+  const now = new Date();
+  const cutoff = new Date(
+    now.getTime() - ABANDONED_REGISTRATION_AGE_MS,
+  );
+
+  // Only remove old accounts that have no passkeys,
+  // no sessions, and no active challenges.
+  await prisma.user.deleteMany({
+    where: {
+      createdAt: {
+        lt: cutoff,
+      },
+      updatedAt: {
+        lt: cutoff,
+      },
+      passkeys: {
+        none: {},
+      },
+      sessions: {
+        none: {},
+      },
+      challenges: {
+        none: {
+          expiresAt: {
+            gt: now,
+          },
+        },
+      },
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
-  // Reject cross-origin and missing-Origin requests before
-  // creating any database records.
   if (request.headers.get("origin") !== expectedOrigin) {
     return NextResponse.json(
       { error: "Invalid request origin" },
@@ -21,12 +55,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Create a pseudonymous account.
+    // Cleanup is best-effort and must not block registration.
+    try {
+      await cleanupAbandonedRegistrations();
+    } catch (error) {
+      console.warn(
+        "Abandoned registration cleanup skipped:",
+        error,
+      );
+    }
+
     const user = await prisma.user.create({
       data: {},
     });
 
-    // Generate WebAuthn registration options.
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
@@ -38,7 +80,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Store the temporary registration challenge.
     await prisma.webAuthnChallenge.create({
       data: {
         challenge: options.challenge,
