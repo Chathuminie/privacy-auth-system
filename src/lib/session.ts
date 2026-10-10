@@ -55,15 +55,19 @@ export async function getSessionFromToken(
     return null;
   }
 
-  if (session.expiresAt <= new Date()) {
-    await prisma.session.delete({
-      where: {
-        id: session.id,
+if (session.expiresAt <= new Date()) {
+  await prisma.session.deleteMany({
+    where: {
+      id: session.id,
+      expiresAt: {
+        lte: new Date(),
       },
-    });
+    },
+  });
 
-    return null;
-  }
+  return null;
+}
+
 
   return session;
 }

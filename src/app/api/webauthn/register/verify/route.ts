@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 
@@ -8,24 +9,45 @@ export const runtime = "nodejs";
 const rpID = "localhost";
 const origin = "http://localhost:3000";
 
+function registrationError(message: string, status = 400) {
+  return NextResponse.json(
+    { verified: false, error: message },
+    { status },
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: unknown;
 
-    const { response, userId } = body;
+    try {
+      body = await request.json();
+    } catch {
+      return registrationError("Invalid JSON request body");
+    }
 
-    if (!response || !userId) {
-      return NextResponse.json(
-        {
-          error: "Missing registration response or user ID",
-        },
-        {
-          status: 400,
-        },
+    if (
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body)
+    ) {
+      return registrationError("Invalid registration request");
+    }
+
+    const { response, userId } = body as Record<string, unknown>;
+
+    if (
+      typeof userId !== "string" ||
+      userId.length === 0 ||
+      !response ||
+      typeof response !== "object" ||
+      Array.isArray(response)
+    ) {
+      return registrationError(
+        "Missing or invalid registration response or user ID",
       );
     }
 
-    // Find the registration challenge created for this user.
     const challengeRecord =
       await prisma.webAuthnChallenge.findFirst({
         where: {
@@ -41,35 +63,38 @@ export async function POST(request: NextRequest) {
       });
 
     if (!challengeRecord) {
-      return NextResponse.json(
-        {
-          error: "Registration challenge not found or expired",
-        },
-        {
-          status: 400,
-        },
+      return registrationError(
+        "Registration challenge not found or expired",
       );
     }
 
-    // Verify the response from Touch ID / passkey authenticator.
-    const verification = await verifyRegistrationResponse({
-      response,
-      expectedChallenge: challengeRecord.challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      requireUserVerification: true,
-    });
+    if (!challengeRecord.webauthnUserID) {
+      return registrationError("WebAuthn user ID is missing");
+    }
 
-    if (!verification.verified || !verification.registrationInfo) {
-      return NextResponse.json(
-        {
-          verified: false,
-          error: "Passkey verification failed",
-        },
-        {
-          status: 400,
-        },
-      );
+    let verification: Awaited<
+      ReturnType<typeof verifyRegistrationResponse>
+    >;
+
+    try {
+      verification = await verifyRegistrationResponse({
+        response: response as Parameters<
+          typeof verifyRegistrationResponse
+        >[0]["response"],
+        expectedChallenge: challengeRecord.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        requireUserVerification: true,
+      });
+    } catch {
+      return registrationError("Passkey verification failed");
+    }
+
+    if (
+      !verification.verified ||
+      !verification.registrationInfo
+    ) {
+      return registrationError("Passkey verification failed");
     }
 
     const {
@@ -78,37 +103,46 @@ export async function POST(request: NextRequest) {
       credentialBackedUp,
     } = verification.registrationInfo;
 
-    if (!challengeRecord.webauthnUserID) {
-      return NextResponse.json(
-        {
-          error: "WebAuthn user ID is missing",
+    // Consume the challenge and create the passkey atomically.
+    // If either operation fails, the transaction rolls back.
+    const saved = await prisma.$transaction(async (tx) => {
+      const consumed = await tx.webAuthnChallenge.deleteMany({
+        where: {
+          id: challengeRecord.id,
+          userId,
+          type: "REGISTRATION",
+          expiresAt: {
+            gt: new Date(),
+          },
         },
-        {
-          status: 400,
+      });
+
+      if (consumed.count !== 1) {
+        return false;
+      }
+
+      await tx.passkey.create({
+        data: {
+          id: credential.id,
+          publicKey: credential.publicKey,
+          webauthnUserID: challengeRecord.webauthnUserID!,
+          counter: BigInt(credential.counter),
+          deviceType: credentialDeviceType,
+          backedUp: credentialBackedUp,
+          transports: credential.transports ?? [],
+          userId,
         },
+      });
+
+      return true;
+    });
+
+    if (!saved) {
+      return registrationError(
+        "Registration challenge already used or expired",
+        409,
       );
     }
-
-    // Store only the PUBLIC credential information.
-    await prisma.passkey.create({
-      data: {
-        id: credential.id,
-        publicKey: credential.publicKey,
-        webauthnUserID: challengeRecord.webauthnUserID,
-        counter: BigInt(credential.counter),
-        deviceType: credentialDeviceType,
-        backedUp: credentialBackedUp,
-        transports: credential.transports ?? [],
-        userId,
-      },
-    });
-
-    // The challenge has now been used, so delete it.
-    await prisma.webAuthnChallenge.delete({
-      where: {
-        id: challengeRecord.id,
-      },
-    });
 
     return NextResponse.json({
       verified: true,
@@ -122,9 +156,7 @@ export async function POST(request: NextRequest) {
         verified: false,
         error: "Unable to verify passkey registration",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
