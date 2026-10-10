@@ -4,6 +4,11 @@ import { verifyRegistrationResponse } from "@simplewebauthn/server";
 
 import { prisma } from "@/lib/prisma";
 
+import {
+  createSession,
+  SESSION_COOKIE_NAME,
+} from "@/lib/session";
+
 export const runtime = "nodejs";
 
 const rpID = "localhost";
@@ -16,8 +21,14 @@ function registrationError(message: string, status = 400) {
   );
 }
 
+
 export async function POST(request: NextRequest) {
+  if (request.headers.get("origin") !== origin) {
+    return registrationError("Invalid request origin", 403);
+  }
+
   try {
+
     let body: unknown;
 
     try {
@@ -144,10 +155,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      verified: true,
-      userId,
+
+    // Registration is complete. Sign in the new account.
+    const { token, expiresAt } = await createSession(userId);
+
+    const browserResponse = NextResponse.json(
+      {
+        verified: true,
+        userId,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+
+    browserResponse.cookies.set({
+      name: SESSION_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
     });
+
+    return browserResponse;
+
   } catch (error) {
     console.error("Registration verification error:", error);
 

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   consumeChallenge: vi.fn(),
   createPasskey: vi.fn(),
   transaction: vi.fn(),
+  createSession: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -25,6 +26,12 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: mocks.transaction,
   },
 }));
+
+vi.mock("@/lib/session", () => ({
+  SESSION_COOKIE_NAME: "privacy_auth_session",
+  createSession: mocks.createSession,
+}));
+
 
 vi.mock("@simplewebauthn/server", () => ({
   verifyRegistrationResponse: mocks.verify,
@@ -45,9 +52,12 @@ function makeRequest(
 ) {
   return new NextRequest(URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+
+headers: {
+  Origin: "http://localhost:3000",
+  "Content-Type": "application/json",
+},
+
     body: JSON.stringify(body),
   });
 }
@@ -55,6 +65,12 @@ function makeRequest(
 describe("Registration Verification API Security", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+
+mocks.createSession.mockResolvedValue({
+  token: "test-session-token",
+  expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+});
+
 
     mocks.challengeFindFirst.mockResolvedValue({
       id: "challenge-1",
@@ -109,10 +125,12 @@ describe("Registration Verification API Security", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+
   it("2. Rejects malformed JSON", async () => {
     const request = new NextRequest(URL, {
       method: "POST",
       headers: {
+        Origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
       body: "{invalid-json",
@@ -123,6 +141,7 @@ describe("Registration Verification API Security", () => {
     expect(result.status).toBe(400);
     expect(mocks.verify).not.toHaveBeenCalled();
   });
+
 
   it("3. Rejects missing or expired challenges", async () => {
     mocks.challengeFindFirst.mockResolvedValue(null);
@@ -161,6 +180,8 @@ describe("Registration Verification API Security", () => {
     expect(mocks.createPasskey).not.toHaveBeenCalled();
   });
 
+
+
   it("5. Rejects invalid WebAuthn verification", async () => {
     mocks.verify.mockRejectedValue(
       new Error("Invalid attestation"),
@@ -171,7 +192,10 @@ describe("Registration Verification API Security", () => {
     expect(result.status).toBe(400);
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.createPasskey).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
   });
+
+
 
   it("6. Rejects unverified credentials", async () => {
     mocks.verify.mockResolvedValue({
@@ -216,6 +240,18 @@ describe("Registration Verification API Security", () => {
       verified: true,
       userId: "user-1",
     });
+
+expect(mocks.createSession)
+  .toHaveBeenCalledWith("user-1");
+
+expect(result.headers.get("set-cookie"))
+  .toContain("privacy_auth_session=test-session-token");
+
+expect(result.headers.get("set-cookie"))
+  .toContain("HttpOnly");
+
+expect(result.headers.get("Cache-Control"))
+  .toBe("no-store");
 
     expect(mocks.verify).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -263,5 +299,31 @@ describe("Registration Verification API Security", () => {
       .toEqual([200, 409]);
 
     expect(mocks.createPasskey).toHaveBeenCalledOnce();
+
+expect(mocks.createSession).toHaveBeenCalledOnce();
+
   });
+
+  it("11. Rejects cross-origin registration verification", async () => {
+    const request = makeRequest();
+    request.headers.set("origin", "https://attacker.example");
+
+    const result = await POST(request);
+
+    expect(result.status).toBe(403);
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("12. Rejects missing Origin headers", async () => {
+    const request = makeRequest();
+    request.headers.delete("origin");
+
+    const result = await POST(request);
+
+    expect(result.status).toBe(403);
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
 });
