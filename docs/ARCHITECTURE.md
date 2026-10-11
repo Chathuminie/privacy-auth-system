@@ -218,6 +218,44 @@ npm audit --omit=dev
 
 Automated tests complement browser integration testing; neither is a substitute for an independent security assessment.
 
+### PostgreSQL Transaction Integration Testing
+
+In addition to mocked API security tests, the project
+includes an opt-in integration test using a real local
+PostgreSQL database.
+
+Test file:
+
+`src/tests/integration/registration-rollback.test.ts`
+
+The test:
+
+1. Opens a real Prisma serializable database transaction.
+2. Creates a disposable pseudonymous user.
+3. Creates a temporary registration challenge.
+4. Deliberately throws an error inside the transaction.
+5. Verifies that neither record remains after rollback.
+6. Performs defensive cleanup of the disposable test user.
+
+To execute the test, start the local PostgreSQL service
+and run:
+
+```bash
+RUN_DB_INTEGRATION_TESTS=1 npx vitest run src/tests/integration/registration-rollback.test.ts
+```
+
+The integration test is skipped during ordinary unit-test
+runs unless explicitly enabled.
+
+This test verifies PostgreSQL transaction rollback
+behavior. It does not establish that concurrent rate-limit
+requests are always serialized correctly, and it does not
+exercise a complete WebAuthn registration through HTTP.
+
+Additional concurrency and end-to-end security testing
+remain future improvements.
+
+
 ## 12. Known Limitations and Future Improvements
 
 - WebAuthn relying-party configuration currently targets localhost.
