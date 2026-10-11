@@ -145,8 +145,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
+
       return true;
+    }, {
+      isolationLevel: "Serializable",
     });
+
 
     if (!saved) {
       return registrationError(
@@ -183,8 +187,24 @@ export async function POST(request: NextRequest) {
 
     return browserResponse;
 
+
   } catch (error) {
+    // Handle serialization conflicts without exposing
+    // internal database information to the browser.
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2034"
+    ) {
+      return registrationError(
+        "Registration state changed. Please try again.",
+        409,
+      );
+    }
+
     console.error("Registration verification error:", error);
+
 
     return NextResponse.json(
       {

@@ -326,4 +326,38 @@ expect(mocks.createSession).toHaveBeenCalledOnce();
     expect(mocks.createSession).not.toHaveBeenCalled();
   });
 
+  it("13. Uses serializable isolation for registration", async () => {
+    const result = await POST(makeRequest());
+
+    expect(result.status).toBe(200);
+
+    expect(mocks.transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      {
+        isolationLevel: "Serializable",
+      },
+    );
+
+    expect(mocks.createSession)
+      .toHaveBeenCalledWith("user-1");
+  });
+
+  it("14. Handles registration transaction conflicts", async () => {
+    mocks.transaction.mockRejectedValueOnce({
+      code: "P2034",
+    });
+
+    const result = await POST(makeRequest());
+
+    expect(result.status).toBe(409);
+
+    expect(await result.json()).toEqual({
+      verified: false,
+      error: "Registration state changed. Please try again.",
+    });
+
+    expect(mocks.createSession).not.toHaveBeenCalled();
+    expect(mocks.createPasskey).not.toHaveBeenCalled();
+  });
+
 });
