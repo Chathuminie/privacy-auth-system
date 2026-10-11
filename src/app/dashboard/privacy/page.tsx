@@ -1,195 +1,42 @@
-
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import DeleteAccountButton from "./delete-account-button";
-
 import { prisma } from "@/lib/prisma";
-import {
-  getSessionFromToken,
-  SESSION_COOKIE_NAME,
-} from "@/lib/session";
+import { getSessionFromToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import { PortalFrame } from "@/components/portal-frame";
+import { SecurityIcon } from "@/components/security-icon";
+import DeleteAccountButton from "./delete-account-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function PrivacyPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!token) {
-    redirect("/login");
-  }
-
+  if (!token) redirect("/login");
   const session = await getSessionFromToken(token);
-
-  if (!session) {
-    redirect("/login");
-  }
-
+  if (!session) redirect("/login");
   const user = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
-    },
-    select: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          passkeys: true,
-          sessions: true,
-          challenges: true,
-        },
-      },
+    where: { id: session.user.id },
+    select: { id: true, createdAt: true, updatedAt: true,
+      _count: { select: { passkeys: true, sessions: true, challenges: true } },
     },
   });
-
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   return (
-    <main className="min-h-screen bg-gray-950 px-6 py-12 text-white">
-      <div className="mx-auto max-w-4xl">
-        <Link
-          href="/dashboard"
-          className="text-sm text-gray-400 hover:text-white"
-        >
-          ← Back to Dashboard
-        </Link>
-
-        <h1 className="mt-8 text-4xl font-bold">
-          Privacy Settings
-        </h1>
-
-        <p className="mt-3 text-gray-400">
-          Understand and manage information stored
-          about your pseudonymous account.
-        </p>
-
-        <section className="mt-8 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="text-xl font-semibold">
-            Your Account
-          </h2>
-
-          <div className="mt-5 space-y-3 text-sm">
-            <p className="break-all">
-              <span className="text-gray-400">
-                User ID:
-              </span>{" "}
-              {user.id}
-            </p>
-
-            <p>
-              <span className="text-gray-400">
-                Created:
-              </span>{" "}
-              {user.createdAt.toLocaleDateString()}
-            </p>
-
-            <p>
-              <span className="text-gray-400">
-                Last updated:
-              </span>{" "}
-              {user.updatedAt.toLocaleDateString()}
-            </p>
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="text-xl font-semibold">
-            Stored Account Data
-          </h2>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border border-gray-700 p-4">
-              <p className="text-sm text-gray-400">
-                Passkeys
-              </p>
-              <p className="mt-2 text-3xl font-semibold">
-                {user._count.passkeys}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-700 p-4">
-              <p className="text-sm text-gray-400">
-                Session records
-              </p>
-              <p className="mt-2 text-3xl font-semibold">
-                {user._count.sessions}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-700 p-4">
-              <p className="text-sm text-gray-400">
-                Temporary challenges
-              </p>
-              <p className="mt-2 text-3xl font-semibold">
-                {user._count.challenges}
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm text-gray-400">
-            Session records may include expired
-            sessions awaiting cleanup. Challenges
-            are temporary WebAuthn records associated
-            with your account.
-          </p>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="text-xl font-semibold">
-            Data Minimization
-          </h2>
-
-          <p className="mt-3 text-sm leading-7 text-gray-300">
-            The current application database schema
-            does not define passwords, email addresses,
-            names, or biometric images. Passkey
-            authentication uses credential identifiers,
-            public keys, and signature counters.
-            Session tokens are stored as hashes.
-          </p>
-
-          <p className="mt-3 text-sm text-gray-400">
-            These statements describe the application
-            database schema, not infrastructure or
-            browser logs.
-          </p>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="text-xl font-semibold">
-            Export Your Data
-          </h2>
-
-          <p className="mt-3 text-sm text-gray-400">
-            Download account information, passkey
-            metadata, session metadata, and associated
-            challenge metadata as JSON. Authentication
-            secrets and cryptographic key material are
-            excluded from this download.
-          </p>
-
-          <a
-            href="/api/privacy/export"
-            className="mt-5 inline-block rounded-lg bg-white px-5 py-3 text-sm font-medium text-black hover:bg-gray-200"
-          >
-            Download My Data (JSON)
-          </a>
-        </section>
-
-
-<section className="mt-6 rounded-xl border border-red-900/60 bg-gray-900 p-6">
-  <h2 className="text-xl font-semibold text-red-400">
-    Account Deletion
-  </h2>
-
-  <DeleteAccountButton />
-</section>
-
-      </div>
-    </main>
+    <PortalFrame area="privacy" eyebrow="Privacy center" heading="Transparency is a feature." description="Understand exactly what the application stores for your pseudonymous account, request a metadata export, or manage your account lifecycle.">
+      <section className="grid gap-5 sm:grid-cols-3" aria-label="Stored account data">
+        {[
+          { label: "Registered passkeys", value: user._count.passkeys, icon: "key" as const },
+          { label: "Session records", value: user._count.sessions, icon: "lock" as const },
+          { label: "Temporary challenges", value: user._count.challenges, icon: "clock" as const },
+        ].map((stat) => <div key={stat.label} className="rounded-[22px] border border-white/10 bg-[#0e1b2e] p-6"><span className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-300/10 text-cyan-200"><SecurityIcon name={stat.icon} className="h-6 w-6" /></span><p className="mt-5 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p><p className="mt-2 text-4xl font-semibold text-white">{stat.value}</p></div>)}
+      </section>
+      <section className="mt-7 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-[26px] border border-white/10 bg-[#0e1b2e] p-6 sm:p-8"><div className="flex items-center gap-3"><SecurityIcon name="fingerprint" className="h-6 w-6 text-cyan-300" /><h2 className="text-xl font-semibold text-white">Your account</h2></div><p className="mt-3 text-sm leading-7 text-slate-400">The identifier below is generated by the system. No name or email field is required in the account schema.</p><div className="mt-6 space-y-4 border-t border-white/10 pt-5"><div><p className="text-xs font-medium text-slate-500">Account ID</p><p className="mt-1 break-all font-mono text-sm text-slate-200">{user.id}</p></div><div className="flex flex-wrap justify-between gap-2"><span className="text-sm text-slate-400">Created</span><span className="text-sm font-medium text-slate-200">{user.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span></div><div className="flex flex-wrap justify-between gap-2"><span className="text-sm text-slate-400">Updated</span><span className="text-sm font-medium text-slate-200">{user.updatedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span></div></div></div>
+        <div className="rounded-[26px] border border-white/10 bg-[#0e1b2e] p-6 sm:p-8"><div className="flex items-center gap-3"><SecurityIcon name="shield" className="h-6 w-6 text-teal-300" /><h2 className="text-xl font-semibold text-white">Data minimization</h2></div><p className="mt-4 text-sm leading-8 text-slate-300">The application&apos;s database schema contains no passwords, names, email addresses, or biometric images. WebAuthn uses credential identifiers, public keys, and signature counters, while stored session tokens are hashed.</p><p className="mt-4 rounded-xl border border-white/10 bg-[#091625] p-4 text-xs leading-6 text-slate-400">These statements describe application database design, not browser, hosting, or infrastructure logs. Session records may include expired entries awaiting cleanup.</p></div>
+      </section>
+      <section className="mt-7 flex flex-wrap items-center justify-between gap-6 rounded-[26px] border border-cyan-300/20 bg-gradient-to-br from-[#123345] to-[#0c1c2e] p-6 sm:p-8"><div className="max-w-2xl"><div className="flex items-center gap-3"><SecurityIcon name="download" className="h-6 w-6 text-cyan-200" /><h2 className="text-xl font-semibold text-white">Export your account data</h2></div><p className="mt-3 text-sm leading-7 text-slate-300">Download deliberately selected account, passkey, session, and challenge metadata as JSON. Session tokens, raw challenges, and cryptographic key bytes are excluded.</p></div><a href="/api/privacy/export" className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#061421] hover:bg-cyan-200"><SecurityIcon name="download" className="h-4 w-4" /> Download JSON</a></section>
+      <section className="mt-7 rounded-[26px] border border-red-400/20 bg-gradient-to-br from-[#281926] to-[#141725] p-6 sm:p-8"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-red-400/10 text-red-300"><SecurityIcon name="trash" className="h-5 w-5" /></span><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-red-300">Danger zone</p><h2 className="mt-1 text-xl font-semibold text-white">Delete your account</h2></div></div><DeleteAccountButton /></section>
+    </PortalFrame>
   );
 }

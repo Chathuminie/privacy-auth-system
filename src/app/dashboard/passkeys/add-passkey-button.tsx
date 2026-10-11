@@ -90,12 +90,12 @@ export default function AddPasskeyButton() {
   }
 
   return (
-    <div className="mt-6">
+    <div className="">
       <button
         type="button"
         onClick={handleAddPasskey}
         disabled={loading}
-        className="bg-white text-black px-5 py-3 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-50"
+        className="inline-flex min-h-12 items-center justify-center rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#061421] shadow-[0_10px_30px_rgba(34,211,238,0.12)] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? "Adding Passkey..." : "Add Another Passkey"}
       </button>
@@ -103,7 +103,7 @@ export default function AddPasskeyButton() {
       {message && (
         <p
           role="status"
-          className="mt-4 text-sm text-gray-300"
+          className="mt-3 max-w-xs text-sm leading-6 text-teal-200"
         >
           {message}
         </p>
