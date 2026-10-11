@@ -244,3 +244,7 @@ This repository is a **local security prototype**. Before accepting real users o
 [Privacy Auth System on GitHub](https://github.com/Chatuminie/privacy-auth-system)
 
 Built as a hands-on exploration of passwordless authentication, secure session management, and privacy-conscious account lifecycle design.
+
+## Architecture
+
+For system architecture, WebAuthn authentication flows, security decisions, and limitations, see [Architecture Documentation](docs/ARCHITECTURE.md).
