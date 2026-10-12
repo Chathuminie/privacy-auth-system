@@ -1,50 +1,82 @@
 import Link from "next/link";
 import { SecurityIcon } from "@/components/security-icon";
+import { StudioBrand } from "@/components/studio-brand";
 
-const features = [
-  { icon: "fingerprint" as const, title: "Passkeys, not passwords", desc: "WebAuthn-based sign-in with browser and device authentication. No password database to manage." },
-  { icon: "shield" as const, title: "Privacy as an architectural choice", desc: "Pseudonymous accounts, session-token hashing, and deliberately limited stored account data." },
-  { icon: "layers" as const, title: "Complete credential lifecycle", desc: "Register, sign in, manage passkeys, export metadata, and securely remove your account." },
+const benefits = [
+  { icon: "shield" as const, title: "More privacy", subtitle: "Less personal data." },
+  { icon: "key" as const, title: "No passwords", subtitle: "Sign in with a passkey." },
+  { icon: "lock" as const, title: "Your control", subtitle: "Manage your credentials." },
 ];
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#060e1b] text-slate-100">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[850px] bg-[radial-gradient(ellipse_at_82%_25%,rgba(34,211,238,0.15),transparent_43%),radial-gradient(ellipse_at_10%_0%,rgba(45,212,191,0.10),transparent_48%)]" />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[800px] bg-[linear-gradient(rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:70px_70px] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
-      <header className="relative z-10 border-b border-white/10 bg-[#081423]/65 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Privacy Auth home"><span className="grid h-11 w-11 place-items-center rounded-2xl border border-cyan-300/30 bg-cyan-300/10 text-cyan-300"><SecurityIcon name="shield" className="h-6 w-6" /></span><span className="text-xl font-bold tracking-tight text-white">privacy<span className="text-cyan-300">auth.</span></span></Link>
-          <nav aria-label="Main navigation" className="order-3 flex w-full flex-wrap gap-5 text-sm text-slate-400 md:order-2 md:w-auto md:gap-8"><a href="#features" className="hover:text-cyan-200">Features</a><a href="#architecture" className="hover:text-cyan-200">Architecture</a><a href="#process" className="hover:text-cyan-200">How it works</a></nav>
-          <div className="order-2 flex items-center gap-2 sm:gap-3 md:order-3"><Link href="/login" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">Log in</Link><Link href="/register" className="rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-bold text-[#061421] shadow-[0_12px_30px_rgba(34,211,238,0.18)] hover:bg-cyan-200">Get started <span aria-hidden="true">↗</span></Link></div>
+    <div className="pa-public-page">
+      <header className="pa-site-header">
+        <div className="pa-site-nav">
+          <StudioBrand />
+          <nav className="pa-nav-links" aria-label="Main navigation">
+            <a href="#how-it-works">How it works</a>
+            <a href="#security">Security</a>
+            <a href="https://github.com/Chathuminie/privacy-auth-system" target="_blank" rel="noopener noreferrer">Source <span aria-hidden="true">↗</span></a>
+          </nav>
+          <div className="pa-site-actions">
+            <Link className="pa-button-link" href="/login">Sign in</Link>
+            <Link className="pa-button" href="/register">Create account <SecurityIcon name="arrow" className="pa-button-icon" /></Link>
+          </div>
         </div>
       </header>
-      <main className="relative z-10">
-        <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-20 lg:grid-cols-[1.06fr_0.94fr] lg:gap-16 lg:px-8 lg:pb-28 lg:pt-28">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200"><span className="h-1.5 w-1.5 rounded-full bg-cyan-300" /> WebAuthn · Privacy by design</span>
-            <h1 className="mt-8 max-w-3xl text-5xl font-semibold leading-[1.05] tracking-[-0.055em] text-white sm:text-6xl xl:text-[76px]">A better way to <span className="bg-gradient-to-r from-cyan-200 via-cyan-300 to-teal-300 bg-clip-text text-transparent">prove it&apos;s you.</span></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-slate-400">Passwordless authentication engineered for clarity, control, and privacy. Explore a complete passkey experience built on WebAuthn and modern full-stack engineering.</p>
-            <div className="mt-9 flex flex-wrap gap-3"><Link href="/register" className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-cyan-300 px-6 py-3 text-sm font-bold text-[#061421] shadow-[0_16px_35px_rgba(34,211,238,0.18)] hover:bg-cyan-200">Create an account <SecurityIcon name="arrow" className="h-4 w-4" /></Link><Link href="/login" className="inline-flex min-h-12 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-300/40 hover:bg-white/10">I have a passkey <SecurityIcon name="chevron" className="h-4 w-4" /></Link></div>
-            <div className="mt-10 flex flex-wrap items-center gap-x-7 gap-y-3 text-xs font-medium text-slate-400"><span className="flex items-center gap-2"><SecurityIcon name="check" className="h-4 w-4 text-teal-300" /> No password needed</span><span className="flex items-center gap-2"><SecurityIcon name="check" className="h-4 w-4 text-teal-300" /> No email required</span><span className="flex items-center gap-2"><SecurityIcon name="check" className="h-4 w-4 text-teal-300" /> Local portfolio prototype</span></div>
-          </div>
-          <div className="relative mx-auto w-full max-w-[520px] py-8" aria-label="Concept illustration of a passkey verification interface; not real account status">
-            <div aria-hidden="true" className="absolute inset-6 rounded-full bg-cyan-400/10 blur-[90px]" />
-            <div aria-hidden="true" className="absolute inset-[4%] rounded-full border border-cyan-200/10" />
-            <div className="relative mx-auto w-full max-w-[450px] rotate-[-2deg] rounded-[28px] border border-cyan-200/20 bg-gradient-to-br from-[#132b3c] via-[#101f32] to-[#0a1728] p-6 shadow-[0_35px_100px_rgba(0,0,0,0.55)] sm:p-8">
-              <div className="flex items-center justify-between gap-3"><span className="text-xs font-bold tracking-[0.19em] text-slate-300">PRIVACY / ID</span><span className="rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1 text-[10px] font-bold tracking-[0.12em] text-teal-200">PASSKEY CONCEPT</span></div>
-              <div className="py-11 text-center"><div className="mx-auto grid h-36 w-36 place-items-center rounded-full border border-cyan-300/25 bg-cyan-300/10 text-cyan-200 shadow-[0_0_65px_rgba(34,211,238,0.12)]"><SecurityIcon name="fingerprint" className="h-20 w-20" /></div><h2 className="mt-7 text-[28px] font-semibold tracking-tight text-white">Your identity. Your device.</h2><p className="mt-2 text-sm text-slate-400">Secure access, without sharing a password.</p></div>
-              <div className="rounded-2xl border border-white/10 bg-[#091726]/80 p-4"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-300/10 text-teal-200"><SecurityIcon name="shield" className="h-6 w-6" /></span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-white">WebAuthn authentication</p><p className="mt-0.5 text-xs text-slate-400">User verification · Public-key cryptography</p></div><span className="hidden text-[10px] font-bold text-teal-300 sm:block">READY</span></div></div>
+
+      <main className="pa-site-container">
+        <section className="pa-hero" aria-labelledby="pa-hero-title">
+          <div className="pa-hero-copy">
+            <p className="pa-kicker">PASSKEY AUTHENTICATION</p>
+            <h1 id="pa-hero-title" className="pa-hero-title">Access<br /><em>on your terms.</em></h1>
+            <p className="pa-hero-description">A simpler, more private way to sign in without passwords.</p>
+            <div className="pa-hero-ctas">
+              <Link href="/register" className="pa-button">Get started <SecurityIcon name="arrow" className="pa-button-icon" /></Link>
+              <Link href="/login" className="pa-button pa-button-outline">I have a passkey</Link>
             </div>
-            <span className="absolute -bottom-2 right-6 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Concept preview · Not live status</span>
+            <p className="pa-hero-footnote">Built with WebAuthn. No name, email or password required.</p>
+          </div>
+          <div className="pa-hero-visual" aria-label="Illustration of a device-held passkey; not a live authentication status">
+            <div className="pa-orbit pa-orbit-outer" aria-hidden="true" />
+            <div className="pa-orbit pa-orbit-inner" aria-hidden="true" />
+            <div className="pa-passkey-stack" aria-hidden="true">
+              <div className="pa-passkey-layer pa-passkey-layer-three" />
+              <div className="pa-passkey-layer pa-passkey-layer-two" />
+              <div className="pa-passkey-layer pa-passkey-layer-main">
+                <SecurityIcon name="key" className="pa-passkey-glyph" />
+              </div>
+            </div>
+            <div className="pa-passkey-label"><span className="pa-status-dot" /> Protected by your passkey</div>
           </div>
         </section>
-        <div className="border-y border-white/10 bg-white/[0.025]"><div className="mx-auto grid max-w-7xl gap-5 px-5 py-7 text-sm font-medium text-slate-300 sm:grid-cols-3 sm:px-8"><div className="flex items-center gap-3"><SecurityIcon name="lock" className="h-5 w-5 text-cyan-300" /> Passwordless by architecture</div><div className="flex items-center gap-3"><SecurityIcon name="database" className="h-5 w-5 text-cyan-300" /> Pseudonymous account model</div><div className="flex items-center gap-3"><SecurityIcon name="shield" className="h-5 w-5 text-cyan-300" /> Fresh verification for sensitive actions</div></div></div>
-        <section id="features" className="mx-auto max-w-7xl px-5 py-24 sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Built deliberately</p><h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">Security-minded engineering.<br /><span className="text-slate-400">Human-centered experience.</span></h2><p className="mt-5 max-w-2xl text-base leading-8 text-slate-400">An authentication journey that explains why each protection exists, without compromising usability.</p><div className="mt-11 grid gap-5 md:grid-cols-3">{features.map((feature) => <article key={feature.title} className="rounded-[24px] border border-white/10 bg-gradient-to-br from-[#132337] to-[#0b1728] p-7 shadow-[0_18px_45px_rgba(0,0,0,0.12)]"><span className="grid h-12 w-12 place-items-center rounded-2xl border border-cyan-300/15 bg-cyan-300/10 text-cyan-200"><SecurityIcon name={feature.icon} className="h-6 w-6" /></span><h3 className="mt-6 text-xl font-semibold text-white">{feature.title}</h3><p className="mt-3 text-sm leading-7 text-slate-400">{feature.desc}</p></article>)}</div></section>
-        <section id="architecture" className="border-y border-white/10 bg-[#0b192b]/50"><div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Under the hood</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">Engineered beyond the login screen.</h2><p className="mt-5 max-w-xl text-base leading-8 text-slate-400">Challenge-response verification, credential ownership, single-use challenges, session invalidation, and privacy controls are all part of the implementation. This is a local prototype, not a production-certified identity provider.</p></div><div className="grid gap-3"><div className="rounded-2xl border border-white/10 bg-[#101e32] p-5"><p className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-300">01 · WebAuthn</p><p className="mt-2 text-lg font-semibold text-white">Challenge-response authentication</p><p className="mt-1 text-sm text-slate-400">Short-lived, purpose-specific server challenges</p></div><div className="rounded-2xl border border-white/10 bg-[#101e32] p-5"><p className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-300">02 · Sessions</p><p className="mt-2 text-lg font-semibold text-white">Hashed server-side session tokens</p><p className="mt-1 text-sm text-slate-400">HttpOnly cookies and revocable database records</p></div><div className="rounded-2xl border border-white/10 bg-[#101e32] p-5"><p className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-300">03 · Privacy</p><p className="mt-2 text-lg font-semibold text-white">User-controlled account lifecycle</p><p className="mt-1 text-sm text-slate-400">Metadata export and reauthenticated deletion</p></div></div></div></section>
-        <section id="process" className="mx-auto max-w-7xl px-5 py-24 sm:px-8"><p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">How it works</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">Three steps to passwordless.</h2><div className="mt-10 grid gap-4 md:grid-cols-3">{[{n:"01",title:"Create an account",body:"Register a pseudonymous account using a supported passkey authenticator."},{n:"02",title:"Verify your identity",body:"Use browser-mediated WebAuthn to prove possession of the private credential."},{n:"03",title:"Stay in control",body:"Manage passkeys, inspect stored metadata, or delete your account securely."}].map(step=><div key={step.n} className="rounded-2xl border border-white/10 bg-[#0f1d31] p-6"><p className="text-sm font-bold tracking-[0.1em] text-cyan-300">{step.n} / STEP</p><h3 className="mt-4 text-lg font-semibold text-white">{step.title}</h3><p className="mt-2 text-sm leading-7 text-slate-400">{step.body}</p></div>)}</div><div className="mt-12 flex flex-wrap items-center justify-between gap-5 rounded-[24px] border border-cyan-300/20 bg-gradient-to-r from-cyan-300/10 via-[#102239] to-teal-300/10 p-8"><div><h3 className="text-2xl font-semibold tracking-tight text-white">Ready to explore the prototype?</h3><p className="mt-2 text-sm text-slate-400">Experience the registration flow on localhost using a compatible device.</p></div><Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-6 py-3 text-sm font-bold text-[#061421] hover:bg-cyan-200">Try Privacy Auth <SecurityIcon name="arrow" className="h-4 w-4" /></Link></div></section>
+
+        <section className="pa-benefit-strip" aria-label="Privacy Auth benefits">
+          {benefits.map((benefit) => (
+            <div className="pa-benefit" key={benefit.title}>
+              <span className="pa-benefit-icon"><SecurityIcon name={benefit.icon} className="pa-small-icon" /></span>
+              <div><strong>{benefit.title}</strong><span>{benefit.subtitle}</span></div>
+            </div>
+          ))}
+        </section>
+
+        <section className="pa-simple-section" id="how-it-works" aria-labelledby="pa-how-title">
+          <div><p className="pa-kicker">HOW IT WORKS</p><h2 id="pa-how-title">Three steps.<br /><em>Nothing extra.</em></h2></div>
+          <div className="pa-simple-steps">
+            <div><span>01</span><strong>Create a passkey</strong><small>Use your device or passkey provider.</small></div>
+            <div><span>02</span><strong>Verify it&apos;s you</strong><small>Approve the browser&apos;s prompt.</small></div>
+            <div><span>03</span><strong>Access your account</strong><small>Manage passkeys and account data.</small></div>
+          </div>
+        </section>
+
+        <section className="pa-quiet-note" id="security">
+          <SecurityIcon name="shield" className="pa-small-icon" />
+          <div><strong>Privacy is built in.</strong><p>Public-key authentication, pseudonymous accounts and hashed session tokens.</p></div>
+          <Link href="/register" className="pa-button-link">Try the prototype <span aria-hidden="true">↗</span></Link>
+        </section>
       </main>
-      <footer className="relative z-10 border-t border-white/10"><div className="mx-auto flex max-w-7xl flex-wrap justify-between gap-3 px-5 py-7 text-xs text-slate-500 sm:px-8"><span>© {new Date().getFullYear()} Privacy Auth · Passwordless by design</span><span>Engineering portfolio prototype · Not a production authentication service</span></div></footer>
+      <footer className="pa-footer"><div className="pa-site-container pa-footer-inner"><span>Privacy Auth © {new Date().getFullYear()}</span><span>Local engineering prototype · Not production-certified</span></div></footer>
     </div>
   );
 }

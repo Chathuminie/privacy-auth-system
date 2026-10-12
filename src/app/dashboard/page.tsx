@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionFromToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { PortalFrame } from "@/components/portal-frame";
 import { SecurityIcon } from "@/components/security-icon";
 
@@ -12,21 +13,33 @@ export default async function DashboardPage() {
   const session = await getSessionFromToken(sessionToken);
   if (!session) redirect("/login");
 
+  const passkeyCount = await prisma.passkey.count({ where: { userId: session.user.id } });
+
   return (
-    <PortalFrame area="overview" eyebrow="Your identity console" heading="Security, in your hands." description="A single place to review your authentication experience, manage passkeys, and understand the information linked to your account." action={<span className="inline-flex items-center gap-2 rounded-full border border-teal-300/25 bg-teal-300/10 px-4 py-2 text-xs font-semibold text-teal-200"><span className="h-2 w-2 rounded-full bg-teal-300" /> Authenticated session</span>}>
-      <section className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="relative overflow-hidden rounded-[28px] border border-cyan-300/20 bg-gradient-to-br from-[#123347] via-[#10293a] to-[#0d2033] p-7 shadow-[0_22px_70px_rgba(0,0,0,0.18)] sm:p-9">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-14 h-72 w-72 rounded-full border border-cyan-300/10 bg-cyan-300/5 shadow-[0_0_80px_rgba(34,211,238,0.1)]" />
-          <div className="relative"><span className="grid h-12 w-12 place-items-center rounded-2xl border border-teal-300/25 bg-teal-300/10 text-teal-200"><SecurityIcon name="shield" className="h-7 w-7" /></span><p className="mt-9 text-xs font-bold uppercase tracking-[0.18em] text-teal-300">Protection overview</p><h2 className="mt-3 max-w-lg text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">Your account is signed in with a passkey.</h2><p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">Your authentication session was verified by the server. This prototype uses public-key credentials rather than a stored password.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/dashboard/passkeys" className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#061421] hover:bg-cyan-200">Manage passkeys <SecurityIcon name="arrow" className="h-4 w-4" /></Link><Link href="/dashboard/privacy" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">Privacy settings <SecurityIcon name="chevron" className="h-4 w-4" /></Link></div></div>
-        </div>
-        <div className="rounded-[28px] border border-white/10 bg-[#0e1b2e] p-7 sm:p-8"><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-[0.17em] text-slate-400">Authentication method</p><SecurityIcon name="fingerprint" className="h-6 w-6 text-cyan-300" /></div><h2 className="mt-7 text-3xl font-semibold tracking-tight text-white">Passkey / WebAuthn</h2><p className="mt-3 text-sm leading-7 text-slate-400">A browser-mediated authentication flow backed by public-key cryptography.</p><div className="mt-7 space-y-4 border-t border-white/10 pt-6"><div className="flex items-center justify-between gap-4"><span className="text-sm text-slate-400">Password stored</span><span className="inline-flex items-center gap-1.5 font-semibold text-teal-300"><SecurityIcon name="check" className="h-4 w-4" /> No</span></div><div className="flex items-center justify-between gap-4"><span className="text-sm text-slate-400">Session status</span><span className="font-semibold text-white">Authenticated</span></div><div className="flex items-center justify-between gap-4"><span className="text-sm text-slate-400">Session expiry</span><span className="text-sm font-medium text-white">{session.expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span></div></div></div>
+    <PortalFrame area="overview" eyebrow="YOUR WORKSPACE" heading="Welcome back." description="Your access, in one place.">
+      <section className="pa-dashboard-grid" aria-label="Account overview">
+        <article className="pa-dashboard-passkeys">
+          <div className="pa-dashboard-card-top">
+            <span className="pa-tile-icon"><SecurityIcon name="key" className="pa-medium-icon" /></span>
+            <Link href="/dashboard/passkeys" className="pa-icon-link" aria-label="Manage your passkeys"><SecurityIcon name="arrow" className="pa-small-icon" /></Link>
+          </div>
+          <h2>Your passkeys</h2>
+          <p>Credentials linked to this account.</p>
+          <div className="pa-dashboard-count-row"><div><strong>{passkeyCount}</strong><span>registered {passkeyCount === 1 ? "passkey" : "passkeys"}</span></div><Link href="/dashboard/passkeys" className="pa-round-add" aria-label="Go to passkey management">+</Link></div>
+        </article>
+        <article className="pa-dashboard-session">
+          <div className="pa-dashboard-card-top"><span className="pa-tile-icon"><SecurityIcon name="shield" className="pa-medium-icon" /></span><span className="pa-status"><span className="pa-status-dot" /> Active</span></div>
+          <h2>Current session</h2>
+          <p>Signed in with a passkey.</p>
+          <dl className="pa-compact-list"><div><dt>Method</dt><dd>WebAuthn</dd></div><div><dt>Expires</dt><dd>{session.expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</dd></div></dl>
+        </article>
+        <Link className="pa-dashboard-privacy" href="/dashboard/privacy">
+          <span className="pa-tile-icon"><SecurityIcon name="lock" className="pa-medium-icon" /></span>
+          <span className="pa-dashboard-privacy-copy"><strong>Your privacy</strong><small>View and export your account data.</small></span>
+          <SecurityIcon name="chevron" className="pa-small-icon" />
+        </Link>
       </section>
-      <section className="mt-7 grid gap-5 md:grid-cols-3" aria-label="Account tools">
-        <Link href="/dashboard/passkeys" className="group rounded-[24px] border border-white/10 bg-[#0e1b2e] p-6 transition-colors hover:border-cyan-300/40 hover:bg-[#12253a]"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300/10 text-cyan-200"><SecurityIcon name="key" className="h-6 w-6" /></span><h3 className="mt-6 flex items-center justify-between text-xl font-semibold text-white">Passkey management <SecurityIcon name="arrow" className="h-4 w-4 text-cyan-300 transition-transform group-hover:translate-x-1" /></h3><p className="mt-2 text-sm leading-7 text-slate-400">View credentials, add a passkey, or remove one after fresh verification.</p></Link>
-        <Link href="/dashboard/privacy" className="group rounded-[24px] border border-white/10 bg-[#0e1b2e] p-6 transition-colors hover:border-cyan-300/40 hover:bg-[#12253a]"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-teal-300/10 text-teal-200"><SecurityIcon name="database" className="h-6 w-6" /></span><h3 className="mt-6 flex items-center justify-between text-xl font-semibold text-white">Privacy center <SecurityIcon name="arrow" className="h-4 w-4 text-cyan-300 transition-transform group-hover:translate-x-1" /></h3><p className="mt-2 text-sm leading-7 text-slate-400">Inspect account metadata, download an export, and control your data.</p></Link>
-        <div className="rounded-[24px] border border-white/10 bg-[#0e1b2e] p-6"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-300/10 text-violet-200"><SecurityIcon name="lock" className="h-6 w-6" /></span><h3 className="mt-6 text-xl font-semibold text-white">Session protection</h3><p className="mt-2 text-sm leading-7 text-slate-400">Sessions are checked on protected pages and can be invalidated by logging out.</p></div>
-      </section>
-      <section className="mt-7 rounded-[24px] border border-white/10 bg-[#0e1b2e] p-6 sm:p-8"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300">Account information</p><h2 className="mt-2 text-xl font-semibold text-white">Pseudonymous by design</h2></div><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-slate-300">Local prototype</span></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-[#091625] p-4"><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Account ID</p><p className="mt-2 break-all font-mono text-sm text-slate-200">{session.user.id}</p></div><div className="rounded-xl border border-white/10 bg-[#091625] p-4"><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Privacy principle</p><p className="mt-2 text-sm text-slate-200">No name, email address, or password required by the account schema.</p></div></div></section>
+      <p className="pa-dashboard-disclaimer">This account uses a pseudonymous ID. No name, email or password is required.</p>
     </PortalFrame>
   );
 }

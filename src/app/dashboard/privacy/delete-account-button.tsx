@@ -110,21 +110,18 @@ export default function DeleteAccountButton() {
   }
 
   return (
-    <div className="mt-5">
+    <div style={{ marginTop: 16 }}>
       <p className="text-sm leading-7 text-red-200">
-        Permanently delete your account, registered
-        passkeys, sessions, and related database
-        records. This action cannot be undone.
+        Permanently removes this account and its credentials. This cannot be undone.
       </p>
 
       <p className="mt-3 text-sm leading-7 text-slate-400">
-        You must confirm your decision and complete
-        fresh passkey verification.
+        Fresh passkey verification is required.
       </p>
 
       <label
         htmlFor="delete-confirmation"
-        className="mt-5 block text-sm text-slate-200"
+        className=""
       >
         Type <strong>DELETE</strong> to continue:
       </label>
@@ -140,7 +137,7 @@ export default function DeleteAccountButton() {
         }
         disabled={loading}
         placeholder="DELETE"
-        className="mt-2 w-full max-w-sm rounded-xl border border-red-300/20 bg-[#0c1523] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-red-300/70 focus:ring-2 focus:ring-red-300/20"
+        className="pa-input"
       />
 
       <div className="mt-4">
@@ -148,11 +145,11 @@ export default function DeleteAccountButton() {
           type="button"
           onClick={handleDelete}
           disabled={confirmation !== "DELETE" || loading}
-          className="rounded-xl border border-red-300/35 bg-red-400/10 px-5 py-3 text-sm font-semibold text-red-200 hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+          className="pa-button pa-button-danger"
         >
           {loading
             ? "Verifying..."
-            : "Permanently Delete Account"}
+            : "Delete account"}
         </button>
       </div>
 
