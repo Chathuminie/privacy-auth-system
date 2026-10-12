@@ -1,141 +1,45 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-
-import {
-  getSessionFromToken,
-  SESSION_COOKIE_NAME,
-} from "@/lib/session";
-
-import Link from "next/link";
+import { getSessionFromToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { PortalFrame } from "@/components/portal-frame";
+import { SecurityIcon } from "@/components/security-icon";
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) redirect("/login");
+  const session = await getSessionFromToken(sessionToken);
+  if (!session) redirect("/login");
 
-const sessionToken =
-  cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const passkeyCount = await prisma.passkey.count({ where: { userId: session.user.id } });
 
-if (!sessionToken) {
-  redirect("/login");
-}
-
-const session = await getSessionFromToken(
-  sessionToken
-);
-
-if (!session) {
-  redirect("/login");
-}
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-5xl mx-auto px-6 py-12">
-
-        <div className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-4xl font-bold">
-              Privacy Dashboard
-            </h1>
-
-            <p className="text-gray-400 mt-2">
-              Manage your authentication and privacy settings.
-            </p>
+    <PortalFrame area="overview" eyebrow="YOUR WORKSPACE" heading="Welcome back." description="Your access, in one place.">
+      <section className="pa-dashboard-grid" aria-label="Account overview">
+        <article className="pa-dashboard-passkeys">
+          <div className="pa-dashboard-card-top">
+            <span className="pa-tile-icon"><SecurityIcon name="key" className="pa-medium-icon" /></span>
+            <Link href="/dashboard/passkeys" className="pa-icon-link" aria-label="Manage your passkeys"><SecurityIcon name="arrow" className="pa-small-icon" /></Link>
           </div>
-
-         <form action="/api/auth/logout" method="post">
-  <button
-    type="submit"
-    className="border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
-  >
-    Logout
-  </button>
-</form>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-3">
-              Authentication
-            </h2>
-
-            <p className="text-gray-400">
-              You are securely authenticated using a passkey.
-            </p>
-
-            <p className="text-green-400 mt-4">
-              ● Secure
-            </p>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-3">
-              Passkeys
-            </h2>
-
-            <p className="text-gray-400">
-              Manage devices and passkeys connected to your account.
-            </p>
-
-
-<Link
-  href="/dashboard/passkeys"
-  className="inline-block mt-4 text-sm border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
->
-  Manage Passkeys
-</Link>
-
-          </div>
-
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold mb-3">
-              Privacy
-            </h2>
-
-            <p className="text-gray-400">
-              View and manage the data stored about your account.
-            </p>
-
-
-<Link
-  href="/dashboard/privacy"
-  className="inline-block mt-4 text-sm border border-gray-700 px-4 py-2 rounded-lg hover:bg-gray-800"
->
-  Privacy Settings
-</Link>
-
-          </div>
-
-        </div>
-
-        <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Account Information
-          </h2>
-
-          <div className="space-y-3 text-gray-400">
-            <p>
-              User ID:
-              <span className="text-white ml-2">
-                {session.user.id}
-              </span>
-            </p>
-
-            <p>
-              Authentication method:
-              <span className="text-white ml-2">
-                Passkey / WebAuthn
-              </span>
-            </p>
-
-            <p>
-              Password stored:
-              <span className="text-green-400 ml-2">
-                No
-              </span>
-            </p>
-          </div>
-        </div>
-
-      </div>
-    </main>
+          <h2>Your passkeys</h2>
+          <p>Credentials linked to this account.</p>
+          <div className="pa-dashboard-count-row"><div><strong>{passkeyCount}</strong><span>registered {passkeyCount === 1 ? "passkey" : "passkeys"}</span></div><Link href="/dashboard/passkeys" className="pa-round-add" aria-label="Go to passkey management">+</Link></div>
+        </article>
+        <article className="pa-dashboard-session">
+          <div className="pa-dashboard-card-top"><span className="pa-tile-icon"><SecurityIcon name="shield" className="pa-medium-icon" /></span><span className="pa-status"><span className="pa-status-dot" /> Active</span></div>
+          <h2>Current session</h2>
+          <p>Signed in with a passkey.</p>
+          <dl className="pa-compact-list"><div><dt>Method</dt><dd>WebAuthn</dd></div><div><dt>Expires</dt><dd>{session.expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</dd></div></dl>
+        </article>
+        <Link className="pa-dashboard-privacy" href="/dashboard/privacy">
+          <span className="pa-tile-icon"><SecurityIcon name="lock" className="pa-medium-icon" /></span>
+          <span className="pa-dashboard-privacy-copy"><strong>Your privacy</strong><small>View and export your account data.</small></span>
+          <SecurityIcon name="chevron" className="pa-small-icon" />
+        </Link>
+      </section>
+      <p className="pa-dashboard-disclaimer">This account uses a pseudonymous ID. No name, email or password is required.</p>
+    </PortalFrame>
   );
 }

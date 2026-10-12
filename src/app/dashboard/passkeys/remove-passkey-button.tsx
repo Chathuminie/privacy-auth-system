@@ -127,30 +127,30 @@ export default function RemovePasskeyButton({
   }
 
   return (
-    <div className="mt-4">
+    <div>
       <button
         type="button"
         onClick={handleRemovePasskey}
         disabled={!canRemove || loading}
-        className="rounded-lg border border-red-500 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-40"
+        className="pa-button pa-button-danger"
       >
-        {loading ? "Verifying..." : "Remove Passkey"}
+        {loading ? "Verifying..." : "Remove passkey"}
       </button>
 
       {!canRemove && (
-        <p className="mt-2 text-sm text-gray-400">
-          You cannot remove your last remaining passkey.
+        <p className="pa-note">
+          Your last passkey cannot be removed.
         </p>
       )}
 
       {status && (
-        <p role="status" className="mt-2 text-sm text-blue-400">
+        <p role="status" className="pa-note">
           {status}
         </p>
       )}
 
       {message && (
-        <p role="status" className="mt-2 text-sm text-gray-300">
+        <p role="status" className="pa-note">
           {message}
         </p>
       )}

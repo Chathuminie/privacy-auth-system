@@ -80,7 +80,6 @@ export default function AddPasskeyButton() {
       "Please choose a different passkey provider or security key."
     );
   } else {
-    console.error("Add passkey error:", error);
     setMessage(errorMessage);
   }
 } finally {
@@ -90,20 +89,20 @@ export default function AddPasskeyButton() {
   }
 
   return (
-    <div className="mt-6">
+    <div>
       <button
         type="button"
         onClick={handleAddPasskey}
         disabled={loading}
-        className="bg-white text-black px-5 py-3 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-50"
+        className="pa-button"
       >
-        {loading ? "Adding Passkey..." : "Add Another Passkey"}
+        {loading ? "Adding…" : "Add passkey"}
       </button>
 
       {message && (
         <p
           role="status"
-          className="mt-4 text-sm text-gray-300"
+          className="pa-auth-status"
         >
           {message}
         </p>
