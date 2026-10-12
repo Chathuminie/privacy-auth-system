@@ -4,7 +4,7 @@
 
 Privacy Auth System is a full-stack Next.js application that demonstrates pseudonymous account creation, phishing-resistant passkey authentication, multi-passkey management, account-data transparency, and WebAuthn-protected account deletion.
 
-> **Project status:** Working **local-development prototype**, tested with Safari, Chrome, and a local PostgreSQL database. It is **not yet production-hardened or independently security-audited**.
+> **Project status:** Working **local-development portfolio prototype**, tested with Safari, Chrome, and a local PostgreSQL database. It is **not production-hardened or independently security-audited**. The final UI redesign and security work are merged into `main`.
 
 ## Features
 
@@ -15,7 +15,7 @@ Privacy Auth System is a full-stack Next.js application that demonstrates pseudo
 - **Privacy dashboard:** View a pseudonymous account identifier and counts of associated passkeys, session records, and temporary challenges.
 - **JSON data export:** Download selected account and authentication **metadata**, omitting session tokens, token hashes, raw challenges, and credential public-key bytes.
 - **Account deletion:** Confirm the action and reauthenticate with a passkey, then delete the account and its related records using database cascade rules.
-- **Automated security tests:** 50 passing Vitest tests across six API test suites at the latest local validation.
+- **Automated security tests:** 81 passing Vitest tests across 10 suites, including a PostgreSQL transaction-rollback integration test.
 
 ## Technology stack
 
@@ -70,16 +70,12 @@ The application represents accounts with opaque IDs rather than requiring names,
 ### 1. Get the code and dependencies
 
 ```bash
-git clone https://github.com/Chatuminie/privacy-auth-system.git
+git clone https://github.com/Chathuminie/privacy-auth-system.git
 cd privacy-auth-system
 npm install
 ```
 
-**Note:** Until the feature work is merged, the completed local-prototype implementation is on the `feature/passkey-removal-reauth` branch:
-
-```bash
-git switch feature/passkey-removal-reauth
-```
+**The completed portfolio prototype is available on the `main` branch.**
 
 ### 2. Configure the database
 
@@ -192,9 +188,15 @@ Run them sequentially if desired:
 npx vitest run && npx tsc --noEmit && npm run lint && npm run build
 ```
 
-**Latest recorded local results (October 2026):** Six test suites, **50/50 tests passed**; TypeScript, ESLint, and the optimized Next.js build completed successfully.
+**Latest recorded local results (12 October 2026):** **81/81 tests passed across 10 suites**, including a real PostgreSQL transaction-rollback integration test. TypeScript, ESLint, and the optimized Next.js build also completed successfully after the final UI redesign.
 
-The test suites cover login challenge options, login verification, passkey removal, metadata export, account-deletion options, and verified account deletion. These are primarily mocked API tests and should be supplemented with end-to-end and adversarial testing.
+The suites cover registration and login flows, authentication challenges, passkey management, privacy export, account deletion, and transactional rollback. Most endpoint tests use mocks; one rollback test uses a real local database. Automated tests should still be supplemented with browser end-to-end and adversarial security testing.
+
+To include the database integration test, run this while the local PostgreSQL instance is available:
+
+```bash
+RUN_DB_INTEGRATION_TESTS=1 npx vitest run
+```
 
 ### Manual demo checklist
 
@@ -241,7 +243,7 @@ This repository is a **local security prototype**. Before accepting real users o
 
 ## Repository
 
-[Privacy Auth System on GitHub](https://github.com/Chatuminie/privacy-auth-system)
+[Privacy Auth System on GitHub](https://github.com/Chathuminie/privacy-auth-system)
 
 Built as a hands-on exploration of passwordless authentication, secure session management, and privacy-conscious account lifecycle design.
 
